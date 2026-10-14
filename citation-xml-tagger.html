@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Citation XML Tagger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet">
+<style>
+:root {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  --paper: #eef1f5;
+  --panel: #ffffff;
+  --ink: #0f1b2d;
+  --muted: #5a6779;
+  --rule: #d5dbe4;
+  --accent: #1d4ed8;
+  --accent-ink: #ffffff;
+  --code-bg: #f7f9fc;
+  --tag: #7a8aa3;
+  --idc: #b45309;
+  --ok: #15803d;
+  --ok-bg: #e6f4ea;
+  --bad: #b42318;
+  --bad-bg: #fdeceb;
+  --warn-bg: #fff4dc;
+  --warn: #8a5a00;
+  --serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0d1420; --panel: #152033; --ink: #e8edf5; --muted: #98a6ba; --rule: #26354d;
+    --accent: #6b95ff; --accent-ink: #0b1220; --code-bg: #0f192a; --tag: #7f92ae; --idc: #f0b35a;
+    --ok: #6fd08c; --ok-bg: #12301f; --bad: #ff8d84; --bad-bg: #3a1714; --warn-bg: #3a2c0c; --warn: #f0c36a;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0d1420; --panel: #152033; --ink: #e8edf5; --muted: #98a6ba; --rule: #26354d;
+  --accent: #6b95ff; --accent-ink: #0b1220; --code-bg: #0f192a; --tag: #7f92ae; --idc: #f0b35a;
+  --ok: #6fd08c; --ok-bg: #12301f; --bad: #ff8d84; --bad-bg: #3a1714; --warn-bg: #3a2c0c; --warn: #f0c36a;
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 56px; }
+header h1 { font-family: var(--serif); font-weight: 600; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; margin: 0 0 8px; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--muted); max-width: 62ch; }
+.grid { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 24px; margin-top: 28px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 18px; }
+.panel h2 { font-family: var(--serif); font-size: 20px; font-weight: 600; margin: 0 0 14px; }
+label { display: block; font-weight: 600; margin: 14px 0 4px; }
+label small { font-weight: 400; color: var(--muted); }
+input[type=text], textarea {
+  width: 100%; font: inherit; color: var(--ink); background: var(--code-bg);
+  border: 1px solid var(--rule); border-radius: 6px; padding: 9px 10px;
+}
+input[type=text] { font-family: var(--mono); font-size: 14px; }
+textarea { font-family: var(--mono); font-size: 13.5px; min-height: 220px; resize: vertical; line-height: 1.55; }
+input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
+.hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+.err { color: var(--bad); font-size: 13px; margin: 4px 0 0; min-height: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+button { font: inherit; font-weight: 600; border-radius: 6px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); padding: 9px 14px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button:disabled { opacity: .55; cursor: not-allowed; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.toolbar h2 { margin: 0; }
+.empty { color: var(--muted); border: 1px dashed var(--rule); border-radius: 10px; padding: 28px; }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+.src { font-size: 14px; color: var(--muted); margin: 0 0 10px; padding-left: 10px; border-left: 3px solid var(--rule); overflow-wrap: anywhere; }
+pre.xml { margin: 0; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; font-family: var(--mono); font-size: 12.5px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+.xml .t { color: var(--tag); }
+.xml .i { color: var(--idc); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; }
+.chip { font-size: 12.5px; padding: 3px 9px; border-radius: 999px; font-weight: 500; }
+.chip.ok { background: var(--ok-bg); color: var(--ok); }
+.chip.bad { background: var(--bad-bg); color: var(--bad); }
+.chip.warn { background: var(--warn-bg); color: var(--warn); }
+.card .bar { display: flex; justify-content: flex-end; margin-top: 10px; }
+.card .bar button { padding: 5px 10px; font-size: 13px; }
+.note { font-size: 13px; color: var(--warn); background: var(--warn-bg); padding: 8px 10px; border-radius: 6px; margin-top: 8px; overflow-wrap: anywhere; }
+.pending { color: var(--muted); font-style: italic; }
+#status { margin-top: 12px; font-size: 14px; color: var(--muted); }
+#unavail { display: none; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Citation XML Tagger</h1>
+    <p>Paste book citations, set the ISBN and starting ID, and get each one back as a single line of bibliomixed XML with sequential IDs. Every result is checked against your original text.</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="in-h">
+      <h2 id="in-h">Your citations</h2>
+
+      <div class="row">
+        <div>
+          <label for="isbn">Base ISBN <small>(16 digits)</small></label>
+          <input type="text" id="isbn" inputmode="numeric" maxlength="16" placeholder="9781234567890123" autocomplete="off">
+          <p class="err" id="isbn-err"></p>
+        </div>
+        <div>
+          <label for="start">Starting ID <small>(8 digits)</small></label>
+          <input type="text" id="start" inputmode="numeric" maxlength="8" placeholder="00000001" autocomplete="off">
+          <p class="err" id="start-err"></p>
+        </div>
+      </div>
+
+      <label for="cits">Citations <small>(one per line)</small></label>
+      <textarea id="cits" spellcheck="false" placeholder="Polanyi, Karl. 1944. *The Great Transformation*. Boston: Beacon Press."></textarea>
+      <p class="hint">Plain text loses italics, so put *asterisks* around any italic text. The asterisks are removed in the XML and replaced with the italic tag.</p>
+      <p class="err" id="cits-err"></p>
+
+      <div class="actions">
+        <button class="primary" id="go">Tag citations</button>
+        <button id="sample-btn" type="button">Load samples</button>
+        <button id="stop" type="button" disabled>Stop</button>
+      </div>
+      <p id="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section aria-labelledby="out-h">
+      <div class="toolbar">
+        <h2 id="out-h">Tagged XML</h2>
+        <div class="actions" style="margin:0">
+          <button id="copy-all" type="button" disabled>Copy all</button>
+          <button id="dl" type="button" disabled>Download .txt</button>
+        </div>
+      </div>
+      <div class="note" id="unavail" role="alert">This page needs to run inside Claude to tag citations. Open it from its claude.ai link.</div>
+      <div id="results"><div class="empty">Results appear here, one card per citation. Each XML line is ready to paste.</div></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { items: [], running: false, ctrl: null };
+
+  var SAMPLES = [
+    "Polanyi, Karl. 1944. *The Great Transformation*. Boston: Beacon Press.",
+    "Smith, John D., Jr. 2004. \u201CPastoralists and Peasants: Perspectives on Agrarian Change.\u201D *The Journal of Peasant Studies* 31 (2): 100-110."
+  ];
+
+  var RULES = [
+    "You are an expert XML bibliographer. Convert the ONE source citation below into a single bibliomixed XML element.",
+    "Reply with the XML only. No explanation, no code fences, no line breaks.",
+    "",
+    "CORE PRINCIPLE: tag, do not rewrite. Keep ALL original text, punctuation, capitalization, spaces, quotes, parentheses and ordering exactly as given. Never add, remove, abbreviate, reorder or invent anything. If a piece of text fits no category, keep it as plain text in place, or wrap it in <bibliomisc role=\"description\">.",
+    "",
+    "ROOT: <bibliomixed role=\"TYPE\" xml:id=\"ID\"> ... </bibliomixed>. TYPE is one of article, monograph, website, other, serial, series, unpublished. Use monograph for books and chapters in books, article for journal articles.",
+    "IDS: every element that carries an xml:id gets the literal attribute xml:id=\"ID\". The page numbers them afterwards, so write exactly ID. Elements with xml:id: bibliomixed, bibliomset, title, address.",
+    "",
+    "NAMES: wrap each author in <author> and each editor in <editor>, each containing <personname>.",
+    "Surname first (Abram, David): <author><personname role=\"last-first\"><surname>Abram</surname>, <firstname>David</firstname></personname></author>",
+    "First name first (John D. Smith Jr.): <author><personname role=\"first-last\"><firstname>John</firstname> <othername role=\"middle-initials\">D.</othername> <surname>Smith</surname> <lineage role=\"comma-before\">Jr.</lineage></personname></author>",
+    "A first name that is only an initial: <firstname role=\"initials\">D.</firstname>. Full middle name: <othername role=\"middle\">. Middle initials: <othername role=\"middle-initials\">. Suffix (Jr., Sr.): <lineage role=\"comma-before\"> and keep the comma from the source. Never expand initials or abbreviate full names.",
+    "An em dash that stands for a repeated author stays as plain text and is NOT wrapped in <author>.",
+    "",
+    "BOOK OR MONOGRAPH TITLE: <title xml:id=\"ID\">Text</title>. If the title is italic, put <emphasis role=\"italic\">Text</emphasis> inside the title.",
+    "JOURNAL ARTICLE: two sections. <bibliomset relation=\"article\" xml:id=\"ID\"> holds the author, year and article title (<title xml:id=\"ID\">). <bibliomset relation=\"journal\" xml:id=\"ID\"> holds the journal <title xml:id=\"ID\"> (italic inside <emphasis role=\"italic\"> when italic), <volumenum>, <issuenum>, <pagenums> and any other publication details. End with </bibliomset></bibliomixed>.",
+    "Keep source quotation marks around titles. Use real smart quote characters (“ and ”) exactly as in the source. Never write them as numeric codes like &#x201C;.",
+    "PAGE RANGES: use a real en dash character (123–145), never a hyphen and never a numeric code like &#x2013;.",
+    "",
+    "PUBLICATION DETAILS: place in <address xml:id=\"ID\"> containing <city> and, if given, <state> after it (keep source parentheses, commas and colons). Publisher in <publishername>. Year in <pubdate>. URL: <link xlink:href=\"URL\"><uri>URL</uri></link>. DOI: <link xlink:href=\"http://dx.doi.org/DOI\"><uri>DOI</uri></link>. Access date: <date role=\"accessed\">Month DD, YYYY</date>.",
+    "Escape ampersands in text as &amp;. Every opened tag must be closed.",
+    "",
+    "The citation marks italic text with *asterisks*. The asterisks are NOT part of the citation: leave them out and use <emphasis role=\"italic\"> instead."
+  ].join("\n");
+
+  function buildPrompt(cit) {
+    return RULES + "\n\nCITATION:\n" + cit + "\n\nXML (one line):";
+  }
+
+  function cleanModel(t) {
+    t = String(t || "").trim();
+    t = t.replace(/^```[a-z]*\s*/i, "").replace(/\s*```$/, "");
+    t = t.replace(/\s*\n\s*/g, " ").trim();
+    t = t.replace(/&#x201C;/gi, "\u201C").replace(/&#x201D;/gi, "\u201D").replace(/&#x2013;/gi, "\u2013");
+    return t;
+  }
+
+  function pad8(n) { var s = String(n); while (s.length < 8) s = "0" + s; return s; }
+
+  function assignIds() {
+    var isbn = $("isbn").value.trim();
+    var counter = parseInt($("start").value.trim(), 10);
+    state.items.forEach(function (it) {
+      if (!it.raw) { it.xml = null; return; }
+      var used = [];
+      it.xml = it.raw.replace(/xml:id="[^"]*"/g, function () {
+        var id = "b-" + isbn + "-" + pad8(counter++);
+        used.push(id);
+        return 'xml:id="' + id + '"';
+      });
+      it.ids = used;
+    });
+  }
+
+  function validate(it) {
+    var checks = [];
+    var doc;
+    try {
+      doc = new DOMParser().parseFromString('<root xmlns:xlink="http://www.w3.org/1999/xlink">' + it.xml + '</root>', "application/xml");
+    } catch (e) { doc = null; }
+    var bad = !doc || doc.getElementsByTagName("parsererror").length > 0;
+    checks.push(bad ? { cls: "bad", t: "XML not well-formed" } : { cls: "ok", t: "Well-formed" });
+
+    if (!bad) {
+      var norm = function (s) { return s.replace(/[\u2013\u2010-\u2012]/g, "-").replace(/\s+/g, " ").trim(); };
+      var got = norm(doc.documentElement.textContent);
+      var want = norm(it.src.replace(/\*/g, ""));
+      if (got === want) {
+        checks.push({ cls: "ok", t: "Text matches your original" });
+      } else {
+        var k = 0;
+        while (k < got.length && k < want.length && got[k] === want[k]) k++;
+        checks.push({ cls: "bad", t: "Text differs from original" });
+        it.diff = "First difference near character " + (k + 1) + ". Yours: \u201C" + want.slice(Math.max(0, k - 10), k + 25) + "\u201D. Tagged: \u201C" + got.slice(Math.max(0, k - 10), k + 25) + "\u201D.";
+      }
+      var ids = it.ids || [];
+      var uniq = ids.filter(function (v, i) { return ids.indexOf(v) === i; }).length;
+      checks.push(ids.length && uniq === ids.length ? { cls: "ok", t: ids.length + " IDs, sequential" } : { cls: "warn", t: ids.length ? "Duplicate IDs" : "No IDs found" });
+      if (/\d-\d/.test(it.xml.replace(/xml:id="[^"]*"/g, "").replace(/<[^>]+>/g, ""))) {
+        checks.push({ cls: "warn", t: "Hyphenated numbers found: check page ranges use an en dash" });
+      }
+    }
+    return checks;
+  }
+
+  function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  function colorize(xml) {
+    var e = esc(xml);
+    e = e.replace(/(&lt;\/?[A-Za-z][^<>]*?\/?&gt;)/g, function (m) {
+      return '<span class="t">' + m.replace(/(xml:id=&quot;|xml:id=")([^"&]*)/, '$1<span class="i">$2</span>') + "</span>";
+    });
+    return e;
+  }
+
+  function render() {
+    var box = $("results");
+    box.textContent = "";
+    if (!state.items.length) {
+      var d = document.createElement("div");
+      d.className = "empty";
+      d.textContent = "Results appear here, one card per citation. Each XML line is ready to paste.";
+      box.appendChild(d);
+      return;
+    }
+    state.items.forEach(function (it, idx) {
+      var card = document.createElement("div");
+      card.className = "card";
+
+      var src = document.createElement("p");
+      src.className = "src";
+      src.textContent = it.src;
+      card.appendChild(src);
+
+      if (it.error) {
+        var n = document.createElement("div");
+        n.className = "note";
+        n.textContent = it.error;
+        card.appendChild(n);
+      } else if (!it.xml) {
+        var p = document.createElement("p");
+        p.className = "pending";
+        p.textContent = it.started ? "Tagging\u2026" : "Waiting\u2026";
+        card.appendChild(p);
+      } else {
+        var pre = document.createElement("pre");
+        pre.className = "xml";
+        pre.innerHTML = colorize(it.xml);
+        card.appendChild(pre);
+
+        var chips = document.createElement("div");
+        chips.className = "chips";
+        validate(it).forEach(function (c) {
+          var s = document.createElement("span");
+          s.className = "chip " + c.cls;
+          s.textContent = c.t;
+          chips.appendChild(s);
+        });
+        card.appendChild(chips);
+
+        if (it.diff) {
+          var dn = document.createElement("div");
+          dn.className = "note";
+          dn.textContent = it.diff;
+          card.appendChild(dn);
+        }
+
+        var bar = document.createElement("div");
+        bar.className = "bar";
+        var b = document.createElement("button");
+        b.type = "button";
+        b.textContent = "Copy line";
+        b.addEventListener("click", function () { copy(it.xml, b); });
+        bar.appendChild(b);
+        card.appendChild(bar);
+      }
+      box.appendChild(card);
+    });
+    var any = state.items.some(function (i) { return i.xml; });
+    $("copy-all").disabled = !any;
+    $("dl").disabled = !any;
+  }
+
+  function allXml() {
+    return state.items.filter(function (i) { return i.xml; }).map(function (i) { return i.xml; }).join("\n");
+  }
+
+  function copy(text, btn) {
+    var done = function () { if (btn) { var o = btn.textContent; btn.textContent = "Copied"; setTimeout(function () { btn.textContent = o; }, 1400); } };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+    } else { fallbackCopy(text); done(); }
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  function readInputs() {
+    var ok = true;
+    var isbn = $("isbn").value.trim(), start = $("start").value.trim();
+    var cits = $("cits").value.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    $("isbn-err").textContent = ""; $("start-err").textContent = ""; $("cits-err").textContent = "";
+    if (!/^\d{16}$/.test(isbn)) { $("isbn-err").textContent = "Enter exactly 16 digits."; ok = false; }
+    if (!/^\d{8}$/.test(start)) { $("start-err").textContent = "Enter exactly 8 digits."; ok = false; }
+    if (!cits.length) { $("cits-err").textContent = "Add at least one citation."; ok = false; }
+    return ok ? cits : null;
+  }
+
+  function getSample() {
+    if (typeof claude === "undefined" || !claude.use) return Promise.resolve(null);
+    return claude.use("sample").catch(function () { return null; });
+  }
+
+  async function run() {
+    var cits = readInputs();
+    if (!cits || state.running) return;
+    var sample = await getSample();
+    if (!sample) { $("unavail").style.display = "block"; return; }
+    $("unavail").style.display = "none";
+
+    state.running = true;
+    state.ctrl = new AbortController();
+    state.items = cits.map(function (c) { return { src: c, raw: null, xml: null }; });
+    $("go").disabled = true; $("stop").disabled = false;
+    render();
+
+    for (var i = 0; i < state.items.length; i++) {
+      var it = state.items[i];
+      it.started = true;
+      $("status").textContent = "Tagging " + (i + 1) + " of " + state.items.length + "\u2026";
+      render();
+      try {
+        var r = await sample(buildPrompt(it.src), { modelTier: "default", cache: false, signal: state.ctrl.signal });
+        it.raw = cleanModel(r.text);
+        if (!it.raw) it.error = "No XML came back. Try this citation again.";
+      } catch (e) {
+        var code = e && e.code;
+        if (code === "aborted" || (state.ctrl && state.ctrl.signal.aborted)) { break; }
+        if (code === "not_granted") { it.error = "Permission to use Claude was declined, so nothing was tagged."; state.running = false; break; }
+        if (code === "rate_limited") { it.error = "Too many requests. Wait a moment and tag again."; break; }
+        it.error = "This citation could not be tagged" + (e && e.message ? ": " + e.message : ".");
+      }
+      assignIds();
+    }
+    assignIds();
+    state.running = false;
+    $("go").disabled = false; $("stop").disabled = true;
+    $("status").textContent = state.items.filter(function (x) { return x.xml; }).length + " of " + state.items.length + " tagged.";
+    render();
+  }
+
+  $("go").addEventListener("click", run);
+  $("stop").addEventListener("click", function () { if (state.ctrl) state.ctrl.abort(); });
+  $("sample-btn").addEventListener("click", function () {
+    $("cits").value = SAMPLES.join("\n");
+    if (!$("isbn").value) $("isbn").value = "9781234567890123";
+    if (!$("start").value) $("start").value = "00000001";
+  });
+  $("copy-all").addEventListener("click", function () { copy(allXml(), $("copy-all")); });
+  $("dl").addEventListener("click", async function () {
+    try {
+      var d = await claude.use("downloads");
+      if (!d) { copy(allXml(), $("dl")); return; }
+      await d.save({ filename: "tagged-citations.txt", data: allXml() });
+    } catch (e) { /* viewer declined or unavailable */ }
+  });
+})();
+</script>
+</body>
+</html>
